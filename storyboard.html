@@ -63,7 +63,7 @@ cursor:pointer;min-height:44px}
 .cliplabel{font-family:Mulish,sans-serif;font-weight:700;font-size:10px;letter-spacing:.11em;
 text-transform:uppercase;color:var(--sage);margin:14px 0 8px;border-top:1px solid var(--line);padding-top:12px}
 .clips{display:flex;gap:9px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
-.clip{flex:0 0 126px}
+.clip{flex:0 0 152px}
 .clipimg{position:relative;border:3px solid var(--line);border-radius:6px;overflow:hidden;
 background:#0d0f0e;cursor:pointer;min-height:44px}
 .clip.rej .clipimg{border-color:var(--red)}
@@ -74,7 +74,14 @@ align-items:center;justify-content:center;font-family:Baskervville,serif;font-si
 background:var(--red);color:#fff;font-family:Mulish,sans-serif;font-weight:700;font-size:12px;
 display:none;align-items:center;justify-content:center}
 .clip.rej .cx{display:flex}
-.ct{font-family:Mulish,sans-serif;font-weight:500;font-size:11px;color:#5a6460;margin-top:5px;line-height:1.35}
+.ct{font-family:Mulish,sans-serif;font-weight:500;font-size:11.5px;color:#5a6460;
+margin-top:5px;line-height:1.4;border-radius:5px;padding:7px 6px;cursor:text;
+min-height:44px;transition:background .15s;border:1px dashed transparent}
+.ct:hover{border-color:var(--line)}
+.ct:focus{outline:2px solid var(--sage);background:#fff;color:var(--ink)}
+.ct.dirty{background:#DCE8E3;color:var(--emerald);border-color:transparent}
+.ctlbl{font-family:Mulish,sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.1em;
+text-transform:uppercase;color:var(--taupe);margin-top:6px}
 .more{margin-top:26px}
 .moreBtn{width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px;
 font-family:Mulish,sans-serif;font-weight:700;font-size:14px;color:var(--emerald);cursor:pointer;min-height:44px}
@@ -187,7 +194,10 @@ function assetEl(a){
         <div class="clipimg" onclick="toggleClip('${q(a.id)}',${i})">
           ${c.t?`<img src="${c.t}" loading="lazy">`:'<div class="endcard">VB</div>'}
           <div class="cx">Swap</div></div>
-        <div class="ct">${esc(c.txt)}</div>
+        <div class="ctlbl">Words on screen</div>
+        <div class="ct${cs.text!==undefined&&cs.text!==c.txt?' dirty':''}" contenteditable="true"
+          oninput="setClipText('${q(a.id)}',${i},this.innerText)"
+        >${esc(cs.text!==undefined?cs.text:c.txt)}</div>
         ${cs.rej?`<div style="margin-top:7px"><textarea placeholder="What would you rather see here?"
           oninput="setClipNote('${q(a.id)}',${i},this.value)">${esc(cs.note||'')}</textarea></div>`:''}
       </div>`;}).join('')}</div>` : '';
@@ -244,8 +254,18 @@ function shrink(file,max){
     img.onerror=()=>res(''); img.src=url;
   });
 }
-function toggleClip(id,i){ const s=st(id+'-c'+i); s.rej=!s.rej; if(!s.rej) delete s.note; save(); render(); }
+function toggleClip(id,i){
+  const s=st(id+'-c'+i); s.rej=!s.rej;
+  if(!s.rej) delete s.note;        // a text edit survives un-rejecting the clip
+  save(); render();
+}
 function setClipNote(id,i,v){ st(id+'-c'+i).note=v; save(); }
+function setClipText(id,i,v){
+  const s=st(id+'-c'+i); s.text=v; save();
+  const a=D.assets.find(x=>x.id===id);
+  const el=document.querySelectorAll('#'+id+' .clip')[i]?.querySelector('.ct');
+  if(el) el.classList.toggle('dirty', v!==a.clips[i].txt);
+}
 function toggleMore(){
   const g=document.getElementById('grid'), b=document.getElementById('moreBtn');
   g.classList.toggle('on');
@@ -284,8 +304,15 @@ function buildNotes(){
       changes.push({type:'headline_edit', asset:a.n, field:'hook', old:a.hook, new:s.hook});
     a.clips.forEach((c,i)=>{
       const cs=S[a.id+'-c'+i]||{};
-      if(cs.rej) changes.push({type:'clip_swap', asset:a.n, beat:i+1, clip:c.name,
-        duration:c.dur, text:c.txt, note:cs.note||null});
+      const textChanged = cs.text!==undefined && cs.text!==c.txt;
+      if(!cs.rej && !textChanged) return;
+      // one entry per changed beat, carrying the swap request and/or the new
+      // overlay copy — CC applies both before rendering.
+      const e = {type:'clip_change', asset:a.n, beat:i+1, clip:c.name, duration:c.dur};
+      if(cs.rej){ e.swap_requested = true; e.note = cs.note || null; }
+      if(textChanged){ e.text_old = c.txt; e.text_new = cs.text; }
+      else { e.text = c.txt; }
+      changes.push(e);
     });
   });
   return changes.length
