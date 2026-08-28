@@ -372,14 +372,16 @@ async function shareFiles(btn, names){
     for (const n of names) {
       const r = await fetch(n);
       const b = await r.blob();
-      files.push(new File([b], n, {type: b.type || 'application/octet-stream'}));
+      // basename only — the path is how we fetch it, not what it should be called
+      // when it lands in her camera roll.
+      files.push(new File([b], n.split('/').pop(), {type: b.type || 'application/octet-stream'}));
     }
     if (navigator.canShare && navigator.canShare({files})) {
       await navigator.share({files});
     } else {
       for (const n of names) {
         const a = document.createElement('a');
-        a.href = n; a.download = n; document.body.appendChild(a); a.click(); a.remove();
+        a.href = n; a.download = n.split('/').pop(); document.body.appendChild(a); a.click(); a.remove();
         await new Promise(r => setTimeout(r, 400));
       }
     }
@@ -387,7 +389,7 @@ async function shareFiles(btn, names){
     if (e && e.name === 'AbortError') { /* user cancelled the sheet */ }
     else {
       for (const n of names) {
-        const a=document.createElement('a'); a.href=n; a.download=n;
+        const a=document.createElement('a'); a.href=n; a.download=n.split('/').pop();
         document.body.appendChild(a); a.click(); a.remove();
       }
     }
