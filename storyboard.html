@@ -261,9 +261,10 @@ function showTarget(){
 // ------------------------------------------------------------------ send ---
 const G = {
   CLIENT_ID:'764744922007-hmad9rma56st6iei44b7j5fabhlcbsj0.apps.googleusercontent.com',
-  SCOPES:'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send',
+  SCOPES:'https://www.googleapis.com/auth/drive',
   SHARED_FOLDER_ID:'1PB2VUYvt5gFRg-D7vxWzj2zc1fhJi7zS',
-  JEFF:'jeffs@chrp.ai',
+  SMS:'2013788468',
+  SMS_BODY:'Cabo storyboard done \u2726 Run pull-trip and make the trip.',
 };
 let tok=null, destId=null;
 
@@ -317,17 +318,10 @@ async function upload(blob,name,folder){
   if(!r.ok) throw new Error(await r.text());
   return r.json();
 }
-function b64url(s){
-  return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-async function mail(){
-  const raw = 'To: '+G.JEFF+'\r\nSubject: Cabo storyboard done\r\n'
-            + 'Content-Type: text/plain; charset=UTF-8\r\n\r\n'
-            + 'Bonnie reviewed the storyboard. Run ./pull-trip cabo then make the cabo trip.';
-  const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-    {method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
-     body:JSON.stringify({raw:b64url(raw)})});
-  if(!r.ok) throw new Error(await r.text());
+// Notification is a text, not an email. Bonnie taps send in Messages and it's
+// done — no mail client, no Gmail scope, no second app to think about.
+function textJeff(){
+  window.location.href = 'sms:' + G.SMS + '&body=' + encodeURIComponent(G.SMS_BODY);
 }
 
 async function send(){
@@ -346,17 +340,13 @@ async function send(){
       const f=PHONE[id];
       await upload(f, 'swap--'+id+'--'+f.name, destId);
     }
-    let emailed=true;
-    try { await mail(); }
-    catch(e){ emailed=false;
-      window.location.href='mailto:'+G.JEFF+'?subject='+encodeURIComponent('Cabo storyboard done')
-        +'&body='+encodeURIComponent('Bonnie reviewed the storyboard. Run ./pull-trip cabo then make the cabo trip.');
-    }
-    document.getElementById('doneNote').textContent = emailed
-      ? (notes.status==='approved' ? 'You approved everything as-is.'
-         : notes.changes.length+' change'+(notes.changes.length===1?'':'s')+' saved to your Drive folder.')
-      : 'Your changes are saved. One last step — hit send on the email that just opened.';
+    // 3. everything is filed — now open a pre-filled text to Jeff.
+    document.getElementById('doneNote').textContent =
+      (notes.status==='approved' ? 'You approved everything as-is. '
+        : notes.changes.length+' change'+(notes.changes.length===1?'':'s')+' saved to your Drive folder. ')
+      + 'Hit send on the text to let Jeff know.';
     document.getElementById('done').classList.add('on');
+    textJeff();
     localStorage.removeItem(LS);
   }catch(e){
     btn.disabled=false; btn.textContent='Send my picks to Jeff ✦';
